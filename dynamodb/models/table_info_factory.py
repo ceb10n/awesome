@@ -1,9 +1,13 @@
+from datetime import datetime
+from typing import List
+
+from .attribute import Attribute
 from .attribute_definition_factory import AttributeDefinitionFactory
-from .billing_type import BillingType
 from .billing import Billing
+from .billing_factory import BillingFactory
 from .index_status import IndexStatus
-from .key_type import KeyType
 from .key import Key
+from .key_factory import KeyFactory
 from .projection_type import ProjectionType
 from .projection import Projection
 from .secondary_index import SecondaryIndex
@@ -16,27 +20,27 @@ from .throughput_factory import ThroughputFactory
 class TableInfoFactory:
 
     def __init__(self):
+        self._described_table = {}
         self._info = None
         self._attr_factory = AttributeDefinitionFactory()
         self._throughput_factory = ThroughputFactory()
+        self._key_factory = KeyFactory()
+        self._billing_factory = BillingFactory()
 
     def create(self, described_table):
-        self._info = EMPTY_TABLE_INFO
-        self._info.status = TableStatus(described_table['TableStatus'])
-        self._info.created_at = described_table['CreationDateTime']
-        self._info.count = described_table['ItemCount']
-        self._info.arn = described_table['TableArn']
-        self._info.id = described_table['TableId']
-        self._info.size_bytes = described_table['TableSizeBytes']
-        self._info.attributes = \
-            self._attr_factory.create(described_table)
-        self._set_keys(described_table['KeySchema'])
-        self._info.throughput = \
-            self._throughput_factory.create(
-                described_table['ProvisionedThroughput'])
+        self._described_table = described_table
 
-        if 'BillingModeSummary' in described_table:
-            self._set_billing(described_table['BillingModeSummary'])
+        self._info = EMPTY_TABLE_INFO
+        self._info.status = self._get_table_status()
+        self._info.created_at = self._get_creation_time()
+        self._info.count = self._get_item_count()
+        self._info.arn = self._get_arn()
+        self._info.id = self._get_id()
+        self._info.size_bytes = self._get_size_bytes()
+        self._info.attributes = self._get_attrs()
+        self._info.keys = self._get_keys()
+        self._info.throughput = self._get_throughput()
+        self._info.billing = self._get_billing()
 
         if 'GlobalSecondaryIndexes' in described_table:
             self._set_secondary_indexes(
@@ -44,17 +48,37 @@ class TableInfoFactory:
 
         return self._info
 
-    def _set_keys(self, keys):
-        for key in keys:
-            self._info.add_key(
-                Key(
-                    key['AttributeName'],
-                    KeyType(key['KeyType'])))
+    def _get_table_status(self) -> TableStatus:
+        return TableStatus(
+            self._described_table['TableStatus'])
 
-    def _set_billing(self, billing):
-        self._info.billing = Billing(
-            billing['LastUpdateToPayPerRequestDateTime'],
-            BillingType(billing['BillingMode']))
+    def _get_creation_time(self) -> datetime:
+        return self._described_table['CreationDateTime']
+
+    def _get_item_count(self) -> int:
+        return self._described_table['ItemCount']
+
+    def _get_arn(self) -> str:
+        return self._described_table['TableArn']
+
+    def _get_id(self) -> str:
+        return self._described_table['TableId']
+
+    def _get_size_bytes(self) -> int:
+        return self._described_table['TableSizeBytes']
+
+    def _get_attrs(self) -> List[Attribute]:
+        return self._attr_factory.create(self._described_table)
+
+    def _get_keys(self) -> List[Key]:
+        return self._key_factory.create(self._described_table)
+
+    def _get_throughput(self) -> Throughput:
+        return self._throughput_factory.create(
+            self._described_table)
+
+    def _get_billing(self) -> Billing:
+        return self._billing_factory.create(self._described_table)
 
     def _set_secondary_indexes(self, indexes):
         for index in indexes:
@@ -62,9 +86,6 @@ class TableInfoFactory:
             throughput = None
             keys = None
             backfilling = None
-
-            last_increased = None
-            last_decreased = None
 
             if 'Backfilling' in index:
                 backfilling = index['Backfilling']
@@ -81,29 +102,10 @@ class TableInfoFactory:
                     non_keys)
 
             if 'KeySchema' in index:
-                keys = []
-                for key in index['KeySchema']:
-                    keys.append(
-                        Key(
-                            key['AttributeName'],
-                            KeyType(key['KeyType'])))
+                keys = self._key_factory.create(index)
 
             if 'ProvisionedThroughput' in index:
-
-                if 'LastIncreaseDateTime' in index['ProvisionedThroughput']:
-                    last_increased = \
-                        index['ProvisionedThroughput']['LastIncreaseDateTime']
-
-                if 'LastDecreaseDateTime' in index['ProvisionedThroughput']:
-                    last_decreased = \
-                        index['ProvisionedThroughput']['LastDecreaseDateTime']
-
-                throughput = Throughput(
-                    last_increased,
-                    last_decreased,
-                    index['ProvisionedThroughput']['NumberOfDecreasesToday'],
-                    index['ProvisionedThroughput']['ReadCapacityUnits'],
-                    index['ProvisionedThroughput']['WriteCapacityUnits'])
+                throughput = self._throughput_factory.create(index)
 
             self._info.add_secondary_index(
                 SecondaryIndex(
