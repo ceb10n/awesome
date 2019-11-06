@@ -9,6 +9,7 @@ from .projection_type import ProjectionType
 from .projection import Projection
 from .secondary_index import SecondaryIndex
 from .status import TableStatus
+from .table_info_factory import TableInfoFactory
 from .table_info import TableInfo, EMPTY_TABLE_INFO
 from .throughput import Throughput
 
@@ -24,6 +25,7 @@ __all__ = [
     'Projection',
     'SecondaryIndex',
     'TableStatus',
+    'TableInfoFactory',
     'TableInfo',
     'EMPTY_TABLE_INFO',
     'Throughput']
